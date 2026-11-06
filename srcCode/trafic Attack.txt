@@ -1,0 +1,94 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+# --------------------------
+# 1. Load the dataset
+# --------------------------
+df = pd.read_csv('wustl-ehms-2020_with_attacks_categories.csv')
+
+# Define the order of categories (as in the example)
+categories = ['normal', 'Spoofing', 'Data Alteration']
+
+# --------------------------
+# 2. Compute traffic proportions
+# --------------------------
+total = len(df)
+proportions = []
+for cat in categories:
+    count = len(df[df['Attack Category'] == cat])
+    proportions.append(count / total)
+
+# --------------------------
+# 3. Compute mean packet rate (λ) for each category
+#    The dataset has a 'Rate' column (packets per second)
+# --------------------------
+lambda_vals = []
+for cat in categories:
+    rate_mean = df[df['Attack Category'] == cat]['Rate'].mean()
+    lambda_vals.append(rate_mean)
+
+# (Optional) If you want a total attack rate, combine spoofing + data alteration:
+attack_mask = df['Attack Category'].isin(['Spoofing', 'Data Alteration'])
+attack_rate_mean = df[attack_mask]['Rate'].mean()
+# We'll include it as a separate category if desired.
+
+# --------------------------
+# 4. Prepare data for plotting
+# --------------------------
+x = np.arange(len(categories))          # label locations
+width = 0.95                             # width of bars
+
+fig, ax1 = plt.subplots(figsize=(8, 5))
+
+# Bars for proportion (left y-axis)
+bars1 = ax1.bar(x - width/2, proportions, width, label='Traffic Proportion', color='#1f77b4')
+ax1.set_xlabel('Attack Category', fontsize=12)
+ax1.set_ylabel('Proportion', fontsize=12, color='#1f77b4')
+ax1.tick_params(axis='y', labelcolor='#1f77b4')
+ax1.set_xticks(x)
+ax1.set_xticklabels(categories, fontsize=11)
+ax1.set_ylim(0, 1)
+
+# Create a second y-axis for λ (packet rate)
+ax2 = ax1.twinx()
+bars2 = ax2.bar(x + width/2, lambda_vals, width, label='Mean Packet Rate λ (pkts/s)', color='#ff7f0e')
+ax2.set_ylabel('Mean Packet Rate λ (pkts/s)', fontsize=12, color='#ff7f0e')
+ax2.tick_params(axis='y', labelcolor='#ff7f0e')
+
+# Add a legend that combines both axes
+lines = [bars1, bars2]
+labels = [b.get_label() for b in lines]
+ax1.legend(lines, labels, loc='upper left', fontsize=10)
+
+# Title
+plt.title('Traffic Proportions and Mean Packet Rates by Attack Category\n(WUSTL‑EHMS‑2020)', fontsize=14)
+
+# Annotate values on bars (optional)
+for bars in [bars1, bars2]:
+    for bar in bars:
+        height = bar.get_height()
+        ax1.annotate(f'{height:.3f}',
+                    xy=(bar.get_x() + bar.get_width()/2, height),
+                    xytext=(0, 3), textcoords="offset points",
+                    ha='center', va='bottom', fontsize=9)
+
+fig.tight_layout()
+plt.show()
+
+# Optionally save the figure
+# fig.savefig('traffic_parameters.png', dpi=300)
+
+# --------------------------
+# 5. (Optional) Print the computed numbers
+# --------------------------
+
+print("Traffic Proportions:")
+for cat, prop in zip(categories, proportions):
+    print(f"  {cat}: {prop:.4f}")
+
+print("\nMean Packet Rates (λ):")
+for cat, lam in zip(categories, lambda_vals):
+    print(f"  {cat}: {lam:.5f} pkts/s")
+# Combined attack rate (spoofing + data alteration)
+print(f"\nOverall attack packet rate (combined): {attack_rate_mean:.4f} pkts/s")

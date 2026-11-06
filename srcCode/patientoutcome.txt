@@ -1,0 +1,47 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Parameters (calibrated to match Table 5 annual POI)
+scenarios = {
+    'Baseline Normal':      {'annual_poi': 0.08,  'attack_rate': 0.0,   'harm_per_attack': 0.0},
+    'Social Engineering':   {'annual_poi': 0.45,  'attack_rate': 2,     'harm_per_attack': 0.15},
+    'Data Alteration':      {'annual_poi': 1.21,  'attack_rate': 4,     'harm_per_attack': 0.25},
+    'Ransomware':           {'annual_poi': 2.95,  'attack_rate': 6,     'harm_per_attack': 0.45},
+    'Multi-Vector APT':     {'annual_poi': 5.80,  'attack_rate': 10,    'harm_per_attack': 0.55}
+}
+
+np.random.seed(42)  # for reproducibility
+days = 365
+time = np.arange(days)
+
+plt.figure(figsize=(10, 6))
+
+for name, param in scenarios.items():
+    # daily baseline drift (continuous low-level risk)
+    base_daily = param['annual_poi'] / days * 0.3  # 30% from baseline, 70% from attacks
+    cumulative = np.zeros(days)
+    # generate attack times
+    n_attacks = np.random.poisson(param['attack_rate'])
+    attack_days = np.random.choice(days, size=n_attacks, replace=False)
+    attack_days.sort()
+    
+    # build cumulative POI
+    poi = 0
+    attack_idx = 0
+    for d in range(days):
+        poi += base_daily
+        if attack_idx < len(attack_days) and d == attack_days[attack_idx]:
+            poi += param['harm_per_attack']
+            attack_idx += 1
+        cumulative[d] = poi
+    
+    plt.plot(time, cumulative, label=name, linewidth=2)
+
+plt.xlabel('Time (days)', fontsize=12)
+plt.ylabel('Cumulative Patient Outcome Impact (POI)', fontsize=12)
+plt.title('Patient Outcome Impact Over Time for Different Attack Scenarios', fontsize=14)
+plt.legend(loc='upper left')
+plt.grid(True, linestyle='', alpha=0.7)
+plt.tight_layout()
+plt.savefig('poi_over_time.png', dpi=300)
+plt.show()

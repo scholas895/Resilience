@@ -1,0 +1,220 @@
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from matplotlib.patches import FancyArrowPatch, Circle, Rectangle, FancyBboxPatch
+import numpy as np
+
+# Set up the figure
+fig, ax = plt.subplots(figsize=(14, 8))
+ax.set_xlim(-1, 20)
+ax.set_ylim(-2, 8)
+ax.set_aspect('equal')
+ax.axis('off')
+
+# ===== Define colours =====
+layer_colours = {
+    'Physical': '#e6f3ff',  # very light blue
+    'Cyber':    '#f0f0f0',  # very light grey
+    'Social':   '#fff2e6'   # very light orange
+}
+attack_edge = 'red'
+attack_style = 'dashed'
+
+# ===== Layer background rectangles =====
+# Physical layer (y = 0 to 2)
+rect_phys = patches.Rectangle((-1, -1), 21, 3, linewidth=0, facecolor=layer_colours['Physical'], zorder=0)
+ax.add_patch(rect_phys)
+# Cyber layer (y = 2 to 4)
+rect_cyber = patches.Rectangle((-1, 2), 21, 2.5, linewidth=0, facecolor=layer_colours['Cyber'], zorder=0)
+ax.add_patch(rect_cyber)
+# Social layer (y = 4 to 6)
+rect_social = patches.Rectangle((-1, 4.5), 21, 2.5, linewidth=0, facecolor=layer_colours['Social'], zorder=0)
+ax.add_patch(rect_social)
+
+# Layer labels
+ax.text(0, 6.8, 'Social Layer', fontsize=14, fontweight='bold', va='center')
+ax.text(0, 3.8, 'Cyber Layer', fontsize=14, fontweight='bold', va='center')
+ax.text(0, 0.8, 'Physical Layer', fontsize=14, fontweight='bold', va='center')
+
+# ===== Define node positions (x, y) =====
+# Columns (stages)
+col = {
+    'A': 1.5,
+    'B': 3.5,
+    'C': 5.5,
+    'D': 7.5,
+    'E': 9.5,
+    'F': 11.5,
+    'G': 13.5,
+    'H': 15.5,
+    'I': 17.5
+}
+
+# Physical layer (y around 1)
+phys_y = 1.0
+nodes = {}
+
+# Physical places
+nodes['P_Stable']        = (col['A'], phys_y)
+nodes['P_Device_Normal'] = (col['A'], phys_y - 0.8)
+nodes['P_HomeRelay_Up']  = (col['A'], phys_y - 1.6)
+nodes['P_Critical']      = (col['C'], phys_y)
+nodes['P_DevCompromised']= (col['D'], phys_y - 1.0)
+nodes['P_RelayDown']     = (col['D'], phys_y - 2.2)
+nodes['P_Interv']        = (col['I'], phys_y)
+
+# Physical transitions
+nodes['T_Deter']         = (col['B'], phys_y)
+nodes['T_DevComp']       = (col['B'], phys_y - 1.2)   # attack
+nodes['T_Sense']         = (col['C'], phys_y - 0.8)
+nodes['T_Trans']         = (col['D'], phys_y)
+nodes['T_RelayFail']     = (col['D'], phys_y - 1.8)   # attack
+nodes['T_RelayRestore']  = (col['D'], phys_y - 2.6)
+nodes['T_Interv']        = (col['I'], phys_y - 0.8)
+
+# Cyber layer (y around 3)
+cyber_y = 3.0
+nodes['P_NetOk']         = (col['A'], cyber_y)
+nodes['P_DataClean']     = (col['D'], cyber_y + 0.5)
+nodes['P_DataBad']       = (col['D'], cyber_y - 0.5)
+nodes['P_NetComp']       = (col['E'], cyber_y - 0.5)
+nodes['P_Alert']         = (col['F'], cyber_y)
+nodes['P_AlertSent']     = (col['G'], cyber_y)
+
+nodes['T_DataCorrupt']   = (col['D'], cyber_y + 0.8)  # attack
+nodes['T_NetAttack']     = (col['E'], cyber_y + 0.8)  # attack
+nodes['T_NetRestore']    = (col['E'], cyber_y - 0.8)
+nodes['T_Process']       = (col['F']-0.8, cyber_y + 0.3)
+nodes['T_ProcessBad']    = (col['F']+0.8, cyber_y - 0.3)  # attack
+nodes['T_GenAlert']      = (col['F']+1.2, cyber_y)
+nodes['T_CommFail']      = (col['G'], cyber_y + 0.8)  # attack
+nodes['T_CommRestore']   = (col['G'], cyber_y - 0.8)
+
+# Social layer (y around 5)
+social_y = 5.0
+nodes['P_ClinAvail']     = (col['A'], social_y)
+nodes['P_ClinReview']    = (col['H'], social_y)
+nodes['P_Decision']      = (col['I'], social_y)
+
+nodes['T_DeliverAlert']  = (col['G'], social_y + 0.5)
+nodes['T_BeginReview']   = (col['H']-1.0, social_y)
+nodes['T_Decide']        = (col['I']-0.8, social_y + 0.3)
+nodes['T_Command']       = (col['I']-0.8, social_y - 0.5)
+
+# ===== Draw nodes =====
+# Helper to add a place (circle)
+def add_place(xy, name):
+    circ = Circle(xy, radius=0.3, facecolor='white', edgecolor='black', linewidth=1.5, zorder=2)
+    ax.add_patch(circ)
+    ax.text(xy[0], xy[1], name, fontsize=8, ha='center', va='center', fontweight='bold')
+
+# Helper to add a normal transition (rectangle)
+def add_trans(xy, name, attack=False):
+    w, h = 0.8, 0.4
+    rect = Rectangle((xy[0]-w/2, xy[1]-h/2), w, h,
+                     facecolor='white', edgecolor='black' if not attack else attack_edge,
+                     linewidth=1.5, linestyle='-' if not attack else attack_style, zorder=2)
+    ax.add_patch(rect)
+    ax.text(xy[0], xy[1], name, fontsize=8, ha='center', va='center', fontweight='bold')
+
+# Draw all nodes
+for name, (x,y) in nodes.items():
+    if name.startswith('P_'):
+        add_place((x,y), name)
+    elif name.startswith('T_'):
+        attack = name in ['T_DevComp', 'T_RelayFail', 'T_DataCorrupt', 'T_NetAttack', 'T_ProcessBad', 'T_CommFail']
+        add_trans((x,y), name, attack)
+
+# ===== Draw edges =====
+# Helper to add an arrow
+def add_arrow(start, end, style='-', color='black'):
+    arrow = FancyArrowPatch(start, end, arrowstyle='->', linestyle=style,
+                            color=color, linewidth=1.5, mutation_scale=15, zorder=1)
+    ax.add_patch(arrow)
+
+# Define edge list (start_node, end_node, style, colour)
+edges = [
+    # Physical internal
+    ('P_Stable', 'T_Deter', '-', 'black'),
+    ('T_Deter', 'P_Critical', '-', 'black'),
+    ('P_Critical', 'T_Sense', '-', 'black'),
+    ('T_Sense', 'T_Trans', '-', 'black'),
+    ('P_Device_Normal', 'T_Sense', '-', 'black'),
+    ('P_HomeRelay_Up', 'T_Trans', '-', 'black'),
+
+    # Physical attacks
+    ('P_Device_Normal', 'T_DevComp', '--', 'red'),
+    ('T_DevComp', 'P_DevCompromised', '--', 'red'),
+    ('T_RelayFail', 'P_RelayDown', '--', 'red'),
+    ('P_RelayDown', 'T_RelayRestore', '-', 'black'),
+    ('T_RelayRestore', 'P_HomeRelay_Up', '-', 'black'),
+
+    # Cyber normal
+    ('T_Trans', 'P_DataClean', '-', 'black'),
+    ('P_DataClean', 'T_Process', '-', 'black'),
+    ('T_Process', 'P_Alert', '-', 'black'),
+    ('P_Alert', 'T_GenAlert', '-', 'black'),
+    ('T_GenAlert', 'P_AlertSent', '-', 'black'),
+    ('P_AlertSent', 'T_DeliverAlert', '-', 'black'),
+    ('P_NetOk', 'T_Process', '-', 'black'),
+
+    # Cyber attacks
+    ('P_DataClean', 'T_DataCorrupt', '--', 'red'),
+    ('T_DataCorrupt', 'P_DataBad', '--', 'red'),
+    ('P_DataBad', 'T_ProcessBad', '--', 'red'),
+    ('P_NetOk', 'T_NetAttack', '--', 'red'),
+    ('T_NetAttack', 'P_NetComp', '--', 'red'),
+    ('P_NetComp', 'T_NetRestore', '--', 'red'),
+    ('T_NetRestore', 'P_NetOk', '-', 'black'),
+
+    # Communication failures
+    ('T_CommFail', 'P_AlertSent', '--', 'red'),
+    ('P_AlertSent', 'T_CommRestore', '-', 'black'),
+    ('T_CommRestore', 'P_AlertSent', '-', 'black'),
+
+    # Social layer
+    ('T_DeliverAlert', 'P_ClinReview', '-', 'black'),
+    ('P_ClinAvail', 'T_BeginReview', '-', 'black'),
+    ('T_BeginReview', 'P_ClinReview', '-', 'black'),
+    ('P_ClinReview', 'T_Decide', '-', 'black'),
+    ('T_Decide', 'P_Decision', '-', 'black'),
+    ('P_Decision', 'T_Command', '-', 'black'),
+
+    # Cross-layer to physical
+    ('T_Command', 'T_Interv', '-', 'black'),
+    ('T_Interv', 'P_Interv', '-', 'black'),
+    ('P_Interv', 'P_Stable', '-', 'black')
+]
+
+for start, end, style, col in edges:
+    add_arrow(nodes[start], nodes[end], style, col)
+
+# ===== Add a token (example in P_Stable) =====
+token = Circle(nodes['P_Stable'], radius=0.1, facecolor='black', edgecolor='none', zorder=3)
+ax.add_patch(token)
+
+# ===== Legend =====
+legend_x, legend_y = 1, -0.5
+# Place
+circ = Circle((legend_x, legend_y), radius=0.2, facecolor='white', edgecolor='black', linewidth=1.5)
+ax.add_patch(circ)
+ax.text(legend_x+0.5, legend_y, 'Place (state)', va='center', fontsize=10)
+
+# Transition
+rect = Rectangle((legend_x+2.0-0.4, legend_y-0.2), 0.8, 0.4, facecolor='white', edgecolor='black', linewidth=1.5)
+ax.add_patch(rect)
+ax.text(legend_x+3.0, legend_y, 'Transition (event)', va='center', fontsize=10)
+
+# Attack transition
+rect_a = Rectangle((legend_x+5.0-0.4, legend_y-0.2), 0.8, 0.4, facecolor='white', edgecolor='red', linestyle='--', linewidth=1.5)
+ax.add_patch(rect_a)
+ax.text(legend_x+6.0, legend_y, 'Attack transition', va='center', fontsize=10)
+
+# Token
+tok = Circle((legend_x+8.0, legend_y), radius=0.1, facecolor='black', edgecolor='none')
+ax.add_patch(tok)
+ax.text(legend_x+8.5, legend_y, 'Token (patient case)', va='center', fontsize=10)
+
+# ===== Final adjustments =====
+plt.tight_layout()
+plt.savefig('spn_figure.png', dpi=300, bbox_inches='tight')
+plt.show()

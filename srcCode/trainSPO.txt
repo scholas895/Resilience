@@ -1,0 +1,87 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+# --------------------------
+# 1. Load and Clean the dataset
+# --------------------------
+df = pd.read_csv('wustl-ehms-2020_with_attacks_categories.csv')
+
+# Strip whitespace from column names to prevent KeyErrors
+df.columns = [c.strip() for c in df.columns]
+
+# List of vital sign columns
+vital_cols = ['SpO2', 'Pulse_Rate', 'SYS', 'DIA', 'Heart_rate', 'Resp_Rate', 'ST']
+temp_col = 'Temp'
+
+# Ensure all these columns are numeric (converts strings to floats, bad values to NaN)
+for c in vital_cols + [temp_col]:
+    df[c] = pd.to_numeric(df[c], errors='coerce')
+
+# Drop rows where Temperature is missing so rounding doesn't fail
+df = df.dropna(subset=[temp_col])
+
+# --------------------------
+# 2. Bin temperature (round to nearest integer)
+# --------------------------
+df['Temp_int'] = df['Temp'].round().astype(int)   # e.g. 28.9 → 29
+
+# --------------------------
+# 3. Group by temperature and compute mean & std for each vital
+# --------------------------
+grouped = df.groupby('Temp_int')[vital_cols].agg(['mean', 'std']).round(2)
+
+# --------------------------
+# 4. Create a line plot with error bands
+# --------------------------
+fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(16, 12))
+axes = axes.flatten()  # flatten to easily iterate
+i = 0 # Initialize variable for cleanup later
+
+for i, col in enumerate(vital_cols):
+    ax = axes[i]
+    temp_vals = grouped.index
+    means = grouped[col]['mean']
+    stds = grouped[col]['std']
+    
+    # Plot Mean
+    ax.plot(temp_vals, means, marker='o', linestyle='-', color='#2E86AB', label='Mean')
+    
+    # Plot Error Band (fill_between)
+    ax.fill_between(temp_vals, means - stds, means + stds, alpha=0.2, color='#2E86AB', label='±1 std')
+    
+    ax.set_xlabel('Temperature (°C)', fontsize=11)
+    ax.set_ylabel(col, fontsize=11)
+    ax.set_title(f'{col} vs. Temperature', fontsize=13, fontweight='bold')
+    ax.grid(True, linestyle='--', alpha=0.6)
+    
+    # Only add legend to the first plot to save space
+    if i == 0:
+        ax.legend(loc='upper right')
+
+# Remove any unused subplots (since we have 7 vitals but a 3x3=9 grid)
+for j in range(i + 1, len(axes)):
+    fig.delaxes(axes[j])
+
+plt.tight_layout()
+
+# ==========================================
+# 5. Save as PNG and PDF (300 DPI)
+# ==========================================
+plt.savefig('vital_signs_vs_temperature.png', dpi=300, bbox_inches='tight')
+plt.savefig('vital_signs_vs_temperature.pdf', dpi=300, bbox_inches='tight')
+print("Figures saved as 'vital_signs_vs_temperature.png' and '.pdf'")
+
+plt.show()
+
+# ==========================================
+# 6. Save the grouped table as CSV
+# ==========================================
+# Flatten the multi-level columns
+table = grouped.copy()
+table.columns = [f'{col}_{stat}' for col, stat in table.columns]
+table.reset_index(inplace=True)
+table.rename(columns={'Temp_int': 'Temperature (°C)'}, inplace=True)
+
+table.to_csv('vital_signs_by_temperature.csv', index=False)
+print("Table saved to 'vital_signs_by_temperature.csv'")
